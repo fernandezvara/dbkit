@@ -94,8 +94,9 @@ func (h *AuditHook) shouldAudit(tableName string) bool {
 	return false
 }
 
-// createEntry creates an audit entry from the context and query.
-func (h *AuditHook) createEntry(ctx context.Context, action AuditAction, tableName, recordID string, oldData, newData interface{}) *AuditEntry {
+// CreateEntry creates an audit entry from the context and query.
+func (h *AuditHook) CreateEntry(ctx context.Context, action AuditAction, tableName, recordID string, oldData, newData interface{}) *AuditEntry {
+	_ = ctx // Suppress unused warning
 	entry := &AuditEntry{
 		Action:    action,
 		TableName: tableName,

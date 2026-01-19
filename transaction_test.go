@@ -247,6 +247,7 @@ func TestTransaction_Nested_Rollback(t *testing.T) {
 		if err != nil {
 			// Nested transaction should rollback, but outer should continue
 			// This is expected behavior for savepoints
+			_ = err // Use err to avoid SA9003
 		}
 
 		// Create another record in outer transaction

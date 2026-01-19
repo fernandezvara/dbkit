@@ -60,7 +60,7 @@ func (db *DBKit) Transaction(ctx context.Context, fn TxFunc) error {
 
 // TransactionWithOptions executes fn within a transaction with custom options
 func (db *DBKit) TransactionWithOptions(ctx context.Context, opts TxOptions, fn TxFunc) error {
-	bunTx, err := db.DB.BeginTx(ctx, &sql.TxOptions{
+	bunTx, err := db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: opts.Isolation,
 		ReadOnly:  opts.ReadOnly,
 	})
@@ -108,7 +108,7 @@ func (db *DBKit) Begin(ctx context.Context) (*Tx, error) {
 
 // BeginWithOptions starts a new transaction with custom options
 func (db *DBKit) BeginWithOptions(ctx context.Context, opts TxOptions) (*Tx, error) {
-	bunTx, err := db.DB.BeginTx(ctx, &sql.TxOptions{
+	bunTx, err := db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: opts.Isolation,
 		ReadOnly:  opts.ReadOnly,
 	})

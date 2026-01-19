@@ -1,36 +1,44 @@
+version: "2"
 run:
-  timeout: 5m
   modules-download-mode: readonly
-
 linters:
   enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gofmt
-    - goimports
+    - bodyclose
     - misspell
+    - noctx
     - unconvert
     - unparam
-    - bodyclose
-    - noctx
-    - exportloopref
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
-  govet:
-    check-shadowing: false
-  goimports:
-    local-prefixes: github.com/fernandezvara/dbkit
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - unparam
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - unparam
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/fernandezvara/dbkit
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

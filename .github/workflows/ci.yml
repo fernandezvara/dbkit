@@ -72,13 +72,13 @@ jobs:
 
       - name: Install golangci-lint (built with Go 1.25.5)
         run: |
-          GOFLAGS="-mod=mod" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+          GOFLAGS="-mod=mod" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.80.0
           echo "$GOPATH/bin" >> $GITHUB_PATH
         env:
           GOPATH: ${{ runner.tool_cache }}/go
 
       - name: Run golangci-lint
-        run: golangci-lint run --out-format=colored-line-number --timeout=5m
+        run: golangci-lint run
 
   build:
     name: Build

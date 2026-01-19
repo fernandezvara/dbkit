@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/fernandezvara/dbkit/hooks"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
+
+	"github.com/fernandezvara/dbkit/hooks"
 )
 
 // DBKit wraps bun.DB with additional functionality
@@ -93,7 +94,7 @@ func (db *DBKit) Close() error {
 
 // Ping verifies the database connection is alive
 func (db *DBKit) Ping(ctx context.Context) error {
-	if err := db.DB.PingContext(ctx); err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		return wrapError(err, "Ping")
 	}
 	return nil
@@ -101,7 +102,7 @@ func (db *DBKit) Ping(ctx context.Context) error {
 
 // Stats returns connection pool statistics
 func (db *DBKit) Stats() sql.DBStats {
-	return db.DB.DB.Stats()
+	return db.DB.Stats()
 }
 
 // Bun returns the underlying bun.DB for direct access
