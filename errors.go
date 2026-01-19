@@ -20,6 +20,7 @@ const (
 	CodeTimeout          ErrorCode = "TIMEOUT"
 	CodeSerialization    ErrorCode = "SERIALIZATION"
 	CodeDeadlock         ErrorCode = "DEADLOCK"
+	CodeConflict         ErrorCode = "CONFLICT"
 	CodeUnknown          ErrorCode = "UNKNOWN"
 )
 

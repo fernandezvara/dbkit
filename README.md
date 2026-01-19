@@ -373,6 +373,31 @@ db.NewSelect().Model(&users).Apply(dbkit.OnlyDeleted).Scan(ctx)  // Only deleted
 db.NewSelect().Model(&users).Apply(dbkit.WithDeleted).Scan(ctx)  // Include all
 ```
 
+### Optimistic Locking
+
+```go
+// Update with version check (returns ErrConflict on mismatch)
+err := dbkit.UpdateWithVersion(ctx, db, &account, account.Version)
+if dbkit.IsConflict(err) {
+    // Handle conflict - reload and retry
+}
+
+// Update specific columns with version check
+err := dbkit.UpdateColumnsWithVersion(ctx, db, &account, account.Version, "balance")
+
+// Retry on conflict automatically
+err := dbkit.RetryOnConflict(ctx, 3, func() error {
+    db.NewSelect().Model(&account).WherePK().Scan(ctx)  // Reload
+    account.Balance += 100
+    return dbkit.UpdateWithVersion(ctx, db, &account, account.Version)
+})
+
+// Builder pattern for versioned updates
+result, err := dbkit.NewVersionedUpdate(db, &account, account.Version).
+    Columns("balance", "updated_at").
+    Exec(ctx)
+```
+
 ## Observability
 
 ### Logging
