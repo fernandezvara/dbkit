@@ -5,7 +5,6 @@ DBKit wraps Bun ORM with additional features:
   - Connection pooling with full configuration
   - Migration execution with checksum verification
   - Transaction support with auto commit/rollback and savepoints
-  - Generic CRUD helpers using Go generics
   - Rich error handling with PostgreSQL error parsing
   - Configurable observability (logging, metrics, tracing)
   - Health check utilities
@@ -31,31 +30,33 @@ DBKit wraps Bun ORM with additional features:
 
 	result, err := db.Migrate(ctx, migrations)
 
-# Generic CRUD
+# Database Operations
+
+Use Bun ORM directly for all CRUD operations:
 
 	// Find by ID
-	user, err := dbkit.FindByID[User](ctx, db, "uuid")
+	var user User
+	err := db.NewSelect().Model(&user).Where("id = ?", id).Scan(ctx)
 
 	// Find with query
-	users, err := dbkit.FindAll[User](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-	    return q.Where("active = ?", true).OrderExpr("created_at DESC")
-	})
+	var users []User
+	err := db.NewSelect().Model(&users).Where("active = ?", true).Order("created_at DESC").Scan(ctx)
 
 	// Create
-	err := dbkit.Create(ctx, db, &user)
+	_, err := db.NewInsert().Model(&user).Exec(ctx)
 
 	// Update
-	err := dbkit.Update(ctx, db, &user)
+	_, err := db.NewUpdate().Model(&user).WherePK().Exec(ctx)
 
 	// Delete
-	err := dbkit.Delete(ctx, db, &user)
+	_, err := db.NewDelete().Model(&user).WherePK().Exec(ctx)
 
 # Transactions
 
 Callback-based (auto commit/rollback):
 
 	err := db.Transaction(ctx, func(tx *dbkit.Tx) error {
-	    if err := dbkit.Create(ctx, tx, &user); err != nil {
+	    if _, err := tx.NewInsert().Model(&user).Exec(ctx); err != nil {
 	        return err // rollback
 	    }
 	    return nil // commit
@@ -76,7 +77,7 @@ Manual control:
 Nested transactions (savepoints):
 
 	err := db.Transaction(ctx, func(tx *dbkit.Tx) error {
-	    dbkit.Create(ctx, tx, &outer)
+	    tx.NewInsert().Model(&outer).Exec(ctx)
 
 	    err := tx.Transaction(ctx, func(tx2 *dbkit.Tx) error {
 	        return errors.New("fail") // only rolls back inner
@@ -87,9 +88,9 @@ Nested transactions (savepoints):
 
 # Error Handling
 
-DBKit provides rich error types:
+DBKit provides rich error types for PostgreSQL errors:
 
-	if err := dbkit.Create(ctx, db, &user); err != nil {
+	if _, err := db.NewInsert().Model(&user).Exec(ctx); err != nil {
 	    if dbkit.IsDuplicate(err) {
 	        // Handle duplicate key
 	    }

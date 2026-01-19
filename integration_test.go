@@ -58,7 +58,7 @@ func TestIntegration_Create(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Test Create
+	// Test Create using direct Bun call
 	model := &TestModel{
 		Name:   "John Doe",
 		Email:  "john@example.com",
@@ -66,7 +66,7 @@ func TestIntegration_Create(t *testing.T) {
 		Active: true,
 	}
 
-	err = Create(ctx, db, model)
+	_, err = db.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -75,8 +75,9 @@ func TestIntegration_Create(t *testing.T) {
 		t.Error("ID should be set after creation")
 	}
 
-	// Verify the record was created
-	found, err := FindByID[TestModel](ctx, db, model.ID)
+	// Verify the record was created using direct Bun call
+	var found TestModel
+	err = db.NewSelect().Model(&found).Where("id = ?", model.ID).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindByID failed: %v", err)
 	}
@@ -97,14 +98,14 @@ func TestIntegration_CreateMany(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Test CreateMany
+	// Test CreateMany using direct Bun call
 	models := []*TestModel{
 		{Name: "Alice", Email: "alice@example.com", Age: 25},
 		{Name: "Bob", Email: "bob@example.com", Age: 30},
 		{Name: "Charlie", Email: "charlie@example.com", Age: 35},
 	}
 
-	err = CreateMany(ctx, db, models)
+	_, err = db.NewInsert().Model(&models).Exec(ctx)
 	if err != nil {
 		t.Fatalf("CreateMany failed: %v", err)
 	}
@@ -115,7 +116,8 @@ func TestIntegration_CreateMany(t *testing.T) {
 			t.Error("ID should be set after creation")
 		}
 
-		found, err := FindByID[TestModel](ctx, db, model.ID)
+		var found TestModel
+		err = db.NewSelect().Model(&found).Where("id = ?", model.ID).Scan(ctx)
 		if err != nil {
 			t.Fatalf("FindByID failed for %s: %v", model.ID, err)
 		}
@@ -133,17 +135,16 @@ func TestIntegration_FindOne(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	model := &TestModel{Name: "Test User", Email: "test@example.com", Age: 40}
-	err = Create(ctx, db, model)
+	_, err = db.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	// Test FindOne
-	found, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "test@example.com")
-	})
+	// Test FindOne using direct Bun call
+	var found TestModel
+	err = db.NewSelect().Model(&found).Where("email = ?", "test@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed: %v", err)
 	}
@@ -153,9 +154,8 @@ func TestIntegration_FindOne(t *testing.T) {
 	}
 
 	// Test FindOne with no results
-	_, err = FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "nonexistent@example.com")
-	})
+	var notFound TestModel
+	err = db.NewSelect().Model(&notFound).Where("email = ?", "nonexistent@example.com").Limit(1).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error, got %v", err)
 	}
@@ -168,22 +168,21 @@ func TestIntegration_FindAll(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data with unique prefix
+	// Create test data with unique prefix using direct Bun call
 	models := []*TestModel{
 		{Name: "IFA_User1", Email: "ifa_user1@example.com", Age: 25, Active: true},
 		{Name: "IFA_User2", Email: "ifa_user2@example.com", Age: 30, Active: false},
 		{Name: "IFA_User3", Email: "ifa_user3@example.com", Age: 35, Active: true},
 	}
 
-	err = CreateMany(ctx, db, models)
+	_, err = db.NewInsert().Model(&models).Exec(ctx)
 	if err != nil {
 		t.Fatalf("CreateMany failed: %v", err)
 	}
 
-	// Test FindAll with filter - only our test records
-	activeUsers, err := FindAll[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("active = ?", true).Where("age > ?", 30).Order("name")
-	})
+	// Test FindAll with filter - only our test records using direct Bun call
+	var activeUsers []TestModel
+	err = db.NewSelect().Model(&activeUsers).Where("active = ?", true).Where("age > ?", 30).Order("name").Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindAll failed: %v", err)
 	}
@@ -192,10 +191,9 @@ func TestIntegration_FindAll(t *testing.T) {
 		t.Errorf("Expected 1 active users, got %d", len(activeUsers))
 	}
 
-	// Test FindAll with filter for our records
-	allUsers, err := FindAll[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("name LIKE ?", "IFA_%")
-	})
+	// Test FindAll with filter for our records using direct Bun call
+	var allUsers []TestModel
+	err = db.NewSelect().Model(&allUsers).Where("name LIKE ?", "IFA_%").Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindAll failed: %v", err)
 	}
@@ -212,23 +210,24 @@ func TestIntegration_Update(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	model := &TestModel{Name: "Original Name", Email: "original@example.com", Age: 25}
-	err = Create(ctx, db, model)
+	_, err = db.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	// Test Update
+	// Test Update using direct Bun call
 	model.Name = "Updated Name"
 	model.Age = 30
-	err = Update(ctx, db, model)
+	_, err = db.NewUpdate().Model(model).WherePK().Exec(ctx)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
 
-	// Verify update
-	found, err := FindByID[TestModel](ctx, db, model.ID)
+	// Verify update using direct Bun call
+	var found TestModel
+	err = db.NewSelect().Model(&found).Where("id = ?", model.ID).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindByID failed: %v", err)
 	}
@@ -249,21 +248,22 @@ func TestIntegration_UpdateColumns(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	model := &TestModel{Name: "Test", Email: "test@example.com", Age: 25}
-	err = Create(ctx, db, model)
+	_, err = db.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	// Test UpdateColumns
-	err = UpdateColumns(ctx, db, model, "name", "age")
+	// Test UpdateColumns using direct Bun call
+	_, err = db.NewUpdate().Model(model).Column("name", "age").WherePK().Exec(ctx)
 	if err != nil {
 		t.Fatalf("UpdateColumns failed: %v", err)
 	}
 
-	// Verify only specified columns were updated
-	found, err := FindByID[TestModel](ctx, db, model.ID)
+	// Verify only specified columns were updated using direct Bun call
+	var found TestModel
+	err = db.NewSelect().Model(&found).Where("id = ?", model.ID).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindByID failed: %v", err)
 	}
@@ -284,35 +284,32 @@ func TestIntegration_UpdateWhere(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	models := []*TestModel{
 		{Name: "User1", Email: "user1@example.com", Age: 25},
 		{Name: "User2", Email: "user2@example.com", Age: 30},
 		{Name: "User3", Email: "user3@example.com", Age: 35},
 	}
 
-	err = CreateMany(ctx, db, models)
+	_, err = db.NewInsert().Model(&models).Exec(ctx)
 	if err != nil {
 		t.Fatalf("CreateMany failed: %v", err)
 	}
 
-	// Test UpdateWhere
-	updateModel := &TestModel{Age: 99}
-	rowsAffected, err := UpdateWhere[TestModel](ctx, db, updateModel, func(q *bun.UpdateQuery) *bun.UpdateQuery {
-		return q.Where("age < ?", 30)
-	})
+	// Test UpdateWhere using direct Bun call
+	result, err := db.NewUpdate().Model((*TestModel)(nil)).Set("age = ?", 99).Where("age < ?", 30).Exec(ctx)
 	if err != nil {
 		t.Fatalf("UpdateWhere failed: %v", err)
 	}
 
+	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected != 1 {
 		t.Errorf("Expected 1 row affected, got %d", rowsAffected)
 	}
 
-	// Verify update
-	updated, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "user1@example.com")
-	})
+	// Verify update using direct Bun call
+	var updated TestModel
+	err = db.NewSelect().Model(&updated).Where("email = ?", "user1@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed: %v", err)
 	}
@@ -329,21 +326,22 @@ func TestIntegration_Delete(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	model := &TestModel{Name: "To Delete", Email: "delete@example.com", Age: 25}
-	err = Create(ctx, db, model)
+	_, err = db.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	// Test Delete
-	err = Delete(ctx, db, model)
+	// Test Delete using direct Bun call
+	_, err = db.NewDelete().Model(model).WherePK().Exec(ctx)
 	if err != nil {
 		t.Fatalf("Delete failed: %v", err)
 	}
 
-	// Verify deletion
-	_, err = FindByID[TestModel](ctx, db, model.ID)
+	// Verify deletion using direct Bun call
+	var notFound TestModel
+	err = db.NewSelect().Model(&notFound).Where("id = ?", model.ID).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error, got %v", err)
 	}
@@ -356,21 +354,22 @@ func TestIntegration_DeleteByID(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	model := &TestModel{Name: "To Delete", Email: "delete2@example.com", Age: 25}
-	err = Create(ctx, db, model)
+	_, err = db.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	// Test DeleteByID
-	err = DeleteByID[TestModel](ctx, db, model.ID)
+	// Test DeleteByID using direct Bun call
+	_, err = db.NewDelete().Model((*TestModel)(nil)).Where("id = ?", model.ID).Exec(ctx)
 	if err != nil {
 		t.Fatalf("DeleteByID failed: %v", err)
 	}
 
-	// Verify deletion
-	_, err = FindByID[TestModel](ctx, db, model.ID)
+	// Verify deletion using direct Bun call
+	var notFound TestModel
+	err = db.NewSelect().Model(&notFound).Where("id = ?", model.ID).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error, got %v", err)
 	}
@@ -383,40 +382,39 @@ func TestIntegration_DeleteWhere(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	models := []*TestModel{
 		{Name: "User1", Email: "user1@example.com", Age: 25},
 		{Name: "User2", Email: "user2@example.com", Age: 30},
 		{Name: "User3", Email: "user3@example.com", Age: 35},
 	}
 
-	err = CreateMany(ctx, db, models)
+	_, err = db.NewInsert().Model(&models).Exec(ctx)
 	if err != nil {
 		t.Fatalf("CreateMany failed: %v", err)
 	}
 
-	// Test DeleteWhere
-	rowsAffected, err := DeleteWhere[TestModel](ctx, db, func(q *bun.DeleteQuery) *bun.DeleteQuery {
-		return q.Where("age > ?", 30)
-	})
+	// Test DeleteWhere using direct Bun call
+	result, err := db.NewDelete().Model((*TestModel)(nil)).Where("age > ?", 30).Exec(ctx)
 	if err != nil {
 		t.Fatalf("DeleteWhere failed: %v", err)
 	}
 
+	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected != 1 {
 		t.Errorf("Expected 1 row affected, got %d", rowsAffected)
 	}
 
-	// Verify deletion
-	_, err = FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "user3@example.com")
-	})
+	// Verify deletion using direct Bun call
+	var notFound TestModel
+	err = db.NewSelect().Model(&notFound).Where("email = ?", "user3@example.com").Limit(1).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error, got %v", err)
 	}
 
-	// Verify other records still exist
-	remaining, err := FindAll[TestModel](ctx, db, nil)
+	// Verify other records still exist using direct Bun call
+	var remaining []TestModel
+	err = db.NewSelect().Model(&remaining).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindAll failed: %v", err)
 	}
@@ -433,15 +431,15 @@ func TestIntegration_ExistsByID(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	model := &TestModel{Name: "Test", Email: "exists@example.com", Age: 25}
-	err = Create(ctx, db, model)
+	_, err = db.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	// Test ExistsByID with existing ID
-	exists, err := ExistsByID[TestModel](ctx, db, model.ID)
+	// Test ExistsByID with existing ID using direct Bun call
+	exists, err := db.NewSelect().Model((*TestModel)(nil)).Where("id = ?", model.ID).Exists(ctx)
 	if err != nil {
 		t.Fatalf("ExistsByID failed: %v", err)
 	}
@@ -450,9 +448,9 @@ func TestIntegration_ExistsByID(t *testing.T) {
 		t.Error("Expected true for existing ID")
 	}
 
-	// Test ExistsByID with non-existing ID
+	// Test ExistsByID with non-existing ID using direct Bun call
 	nonExistentID := "00000000-0000-0000-0000-000000000000"
-	exists, err = ExistsByID[TestModel](ctx, db, nonExistentID)
+	exists, err = db.NewSelect().Model((*TestModel)(nil)).Where("id = ?", nonExistentID).Exists(ctx)
 	if err != nil {
 		t.Fatalf("ExistsByID failed: %v", err)
 	}
@@ -469,20 +467,20 @@ func TestIntegration_Count(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Create test data
+	// Create test data using direct Bun call
 	models := []*TestModel{
 		{Name: "IC_User1", Email: "ic_user1@example.com", Age: 25, Active: true},
 		{Name: "IC_User2", Email: "ic_user2@example.com", Age: 30, Active: false},
 		{Name: "IC_User3", Email: "ic_user3@example.com", Age: 35, Active: true},
 	}
 
-	err = CreateMany(ctx, db, models)
+	_, err = db.NewInsert().Model(&models).Exec(ctx)
 	if err != nil {
 		t.Fatalf("CreateMany failed: %v", err)
 	}
 
-	// Test Count all
-	count, err := Count[TestModel](ctx, db, nil)
+	// Test Count all using direct Bun call
+	count, err := db.NewSelect().Model((*TestModel)(nil)).Count(ctx)
 	if err != nil {
 		t.Fatalf("Count failed: %v", err)
 	}
@@ -491,10 +489,8 @@ func TestIntegration_Count(t *testing.T) {
 		t.Errorf("Expected count 3, got %d", count)
 	}
 
-	// Test Count with filter
-	activeCount, err := Count[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("active = ?", true)
-	})
+	// Test Count with filter using direct Bun call
+	activeCount, err := db.NewSelect().Model((*TestModel)(nil)).Where("active = ?", true).Count(ctx)
 	if err != nil {
 		t.Fatalf("Count failed: %v", err)
 	}
@@ -511,17 +507,21 @@ func TestIntegration_Upsert(t *testing.T) {
 	var err error
 	ctx := createTable(t, db)
 
-	// Test Upsert (insert)
+	// Test Upsert (insert) using direct Bun call
 	model := &TestModel{Name: "Upsert Test", Email: "upsert@example.com", Age: 25}
-	err = Upsert(ctx, db, model, []string{"email"}, []string{"name", "age", "updated_at"})
+	_, err = db.NewInsert().Model(model).
+		On("CONFLICT (email) DO UPDATE").
+		Set("name = EXCLUDED.name").
+		Set("age = EXCLUDED.age").
+		Set("updated_at = EXCLUDED.updated_at").
+		Exec(ctx)
 	if err != nil {
 		t.Fatalf("Upsert (insert) failed: %v", err)
 	}
 
-	// Verify insertion
-	inserted, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "upsert@example.com")
-	})
+	// Verify insertion using direct Bun call
+	var inserted TestModel
+	err = db.NewSelect().Model(&inserted).Where("email = ?", "upsert@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed: %v", err)
 	}
@@ -530,18 +530,22 @@ func TestIntegration_Upsert(t *testing.T) {
 		t.Errorf("Expected name Upsert Test, got %s", inserted.Name)
 	}
 
-	// Test Upsert (update)
+	// Test Upsert (update) using direct Bun call
 	model.Name = "Updated Upsert"
 	model.Age = 30
-	err = Upsert(ctx, db, model, []string{"email"}, []string{"name", "age", "updated_at"})
+	_, err = db.NewInsert().Model(model).
+		On("CONFLICT (email) DO UPDATE").
+		Set("name = EXCLUDED.name").
+		Set("age = EXCLUDED.age").
+		Set("updated_at = EXCLUDED.updated_at").
+		Exec(ctx)
 	if err != nil {
 		t.Fatalf("Upsert (update) failed: %v", err)
 	}
 
-	// Verify update
-	updated, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "upsert@example.com")
-	})
+	// Verify update using direct Bun call
+	var updated TestModel
+	err = db.NewSelect().Model(&updated).Where("email = ?", "upsert@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed: %v", err)
 	}

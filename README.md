@@ -7,7 +7,6 @@ An opinionated database layer for Go applications built on top of [Bun ORM](http
 - **Connection Pooling**: Full control over pool size, lifetimes, and timeouts
 - **Migrations**: Execute SQL migrations with checksum verification
 - **Transactions**: Callback-based (auto commit/rollback) + Manual + Savepoints
-- **Generic Helpers**: `FindByID[T]`, `Create`, `Update`, `Delete`, and more
 - **Rich Errors**: Typed errors with Code, Constraint, Table, Column, Detail, Hint
 - **Observability**: Structured logging, Prometheus metrics, OpenTelemetry tracing
 
@@ -15,6 +14,49 @@ An opinionated database layer for Go applications built on top of [Bun ORM](http
 
 ```bash
 go get github.com/fernandezvara/dbkit
+```
+
+## Common Database Patterns with Bun
+
+Here are common database operations and how to implement them using Bun ORM directly:
+
+| Pattern             | Bun Implementation                                                        |
+| ------------------- | ------------------------------------------------------------------------- |
+| **FindByID**        | `db.NewSelect().Model(&model).Where("id = ?", id).Scan(ctx)`              |
+| **FindByPK**        | `db.NewSelect().Model(model).WherePK().Scan(ctx)`                         |
+| **FindOne**         | `db.NewSelect().Model(&model).Limit(1).Scan(ctx)`                         |
+| **FindAll**         | `db.NewSelect().Model(&models).Scan(ctx)`                                 |
+| **Create**          | `db.NewInsert().Model(&model).Exec(ctx)`                                  |
+| **CreateReturning** | `db.NewInsert().Model(&model).Returning("id").Exec(ctx)`                  |
+| **CreateMany**      | `db.NewInsert().Model(&models).Exec(ctx)`                                 |
+| **Update**          | `db.NewUpdate().Model(&model).WherePK().Exec(ctx)`                        |
+| **UpdateColumns**   | `db.NewUpdate().Model(&model).Column("name").WherePK().Exec(ctx)`         |
+| **Delete**          | `db.NewDelete().Model(&model).WherePK().Exec(ctx)`                        |
+| **DeleteByID**      | `db.NewDelete().Model(&model).Where("id = ?", id).Exec(ctx)`              |
+| **Exists**          | `db.NewSelect().Model(&model).Where("name = ?", name).Exists(ctx)`        |
+| **ExistsByID**      | `db.NewSelect().Model(&model).Where("id = ?", id).Exists(ctx)`            |
+| **Count**           | `db.NewSelect().Model(&model).Where("active = ?", true).Count(ctx)`       |
+| **CountAll**        | `db.NewSelect().Model(&model).Count(ctx)`                                 |
+| **Reload**          | `db.NewSelect().Model(&model).WherePK().Scan(ctx)`                        |
+| **Upsert**          | `db.NewInsert().Model(&model).On("CONFLICT (email) DO UPDATE").Exec(ctx)` |
+| **Transaction**     | `db.Transaction(ctx, func(tx *bun.Tx) error { ... })`                     |
+| **Raw Query**       | `db.NewRaw("SELECT * FROM users WHERE age > ?", age).Scan(ctx, &users)`   |
+
+**Enhanced Error Handling with dbkit:**
+
+```go
+// Wrap any Bun operation with enhanced error context:
+user, err := dbkit.WithErr(db.NewSelect().Model(&user).Where("id = ?", id).Scan(ctx), "FindByID").Unwrap()
+if err != nil {
+    // Get rich error information:
+    if dbkit.IsNotFound(err) {
+        // Handle not found
+    }
+    var dbErr *dbkit.Error
+    if errors.As(err, &dbErr) {
+        fmt.Printf("Table: %s, Constraint: %s\n", dbErr.Table, dbErr.Constraint)
+    }
+}
 ```
 
 ## Quick Start

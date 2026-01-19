@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	"github.com/uptrace/bun"
 )
 
 func TestTransaction_Commit(t *testing.T) {
@@ -24,14 +22,16 @@ func TestTransaction_Commit(t *testing.T) {
 	model := &TestModel{Name: "Transaction Test", Email: "tx@example.com", Age: 25}
 
 	err = db.Transaction(ctx, func(tx *Tx) error {
-		return Create(ctx, tx, model)
+		_, err := tx.NewInsert().Model(model).Exec(ctx)
+		return err
 	})
 	if err != nil {
 		t.Fatalf("Transaction failed: %v", err)
 	}
 
 	// Verify record was committed
-	found, err := FindByID[TestModel](ctx, db, model.ID)
+	var found TestModel
+	err = db.NewSelect().Model(&found).Where("id = ?", model.ID).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindByID failed: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestTransaction_Rollback(t *testing.T) {
 	model := &TestModel{Name: "Rollback Test", Email: "rollback@example.com", Age: 25}
 
 	err = db.Transaction(ctx, func(tx *Tx) error {
-		if err := Create(ctx, tx, model); err != nil {
+		if _, err := tx.NewInsert().Model(model).Exec(ctx); err != nil {
 			return err
 		}
 		return errors.New("intentional error to trigger rollback")
@@ -71,7 +71,8 @@ func TestTransaction_Rollback(t *testing.T) {
 	}
 
 	// Verify record was not committed
-	_, err = FindByID[TestModel](ctx, db, model.ID)
+	var notFound TestModel
+	err = db.NewSelect().Model(&notFound).Where("id = ?", model.ID).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error, got %v", err)
 	}
@@ -96,7 +97,7 @@ func TestTransaction_ManualCommit(t *testing.T) {
 	}
 
 	model := &TestModel{Name: "Manual Commit", Email: "manual@example.com", Age: 30}
-	err = Create(ctx, tx, model)
+	_, err = tx.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("Create failed: %v", err)
@@ -108,7 +109,8 @@ func TestTransaction_ManualCommit(t *testing.T) {
 	}
 
 	// Verify record was committed
-	found, err := FindByID[TestModel](ctx, db, model.ID)
+	var found TestModel
+	err = db.NewSelect().Model(&found).Where("id = ?", model.ID).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindByID failed: %v", err)
 	}
@@ -137,7 +139,7 @@ func TestTransaction_ManualRollback(t *testing.T) {
 	}
 
 	model := &TestModel{Name: "Manual Rollback", Email: "manualrollback@example.com", Age: 35}
-	err = Create(ctx, tx, model)
+	_, err = tx.NewInsert().Model(model).Exec(ctx)
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("Create failed: %v", err)
@@ -149,7 +151,8 @@ func TestTransaction_ManualRollback(t *testing.T) {
 	}
 
 	// Verify record was not committed
-	_, err = FindByID[TestModel](ctx, db, model.ID)
+	var notFound TestModel
+	err = db.NewSelect().Model(&notFound).Where("id = ?", model.ID).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error, got %v", err)
 	}
@@ -171,14 +174,15 @@ func TestTransaction_Nested_Commit(t *testing.T) {
 	err = db.Transaction(ctx, func(tx *Tx) error {
 		// Outer transaction
 		outerModel := &TestModel{Name: "Outer", Email: "outer@example.com", Age: 40}
-		if err := Create(ctx, tx, outerModel); err != nil {
+		if _, err := tx.NewInsert().Model(outerModel).Exec(ctx); err != nil {
 			return err
 		}
 
 		// Nested transaction
 		err := tx.Transaction(ctx, func(tx2 *Tx) error {
 			innerModel := &TestModel{Name: "Inner", Email: "inner@example.com", Age: 45}
-			return Create(ctx, tx2, innerModel)
+			_, err := tx2.NewInsert().Model(innerModel).Exec(ctx)
+			return err
 		})
 		if err != nil {
 			return err
@@ -191,9 +195,8 @@ func TestTransaction_Nested_Commit(t *testing.T) {
 	}
 
 	// Verify both records were committed
-	outerFound, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "outer@example.com")
-	})
+	var outerFound TestModel
+	err = db.NewSelect().Model(&outerFound).Where("email = ?", "outer@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed for outer: %v", err)
 	}
@@ -202,9 +205,8 @@ func TestTransaction_Nested_Commit(t *testing.T) {
 		t.Errorf("Expected name Outer, got %s", outerFound.Name)
 	}
 
-	innerFound, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "inner@example.com")
-	})
+	var innerFound TestModel
+	err = db.NewSelect().Model(&innerFound).Where("email = ?", "inner@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed for inner: %v", err)
 	}
@@ -230,14 +232,14 @@ func TestTransaction_Nested_Rollback(t *testing.T) {
 	err = db.Transaction(ctx, func(tx *Tx) error {
 		// Outer transaction
 		outerModel := &TestModel{Name: "Outer Nested", Email: "outernested@example.com", Age: 50}
-		if err := Create(ctx, tx, outerModel); err != nil {
+		if _, err := tx.NewInsert().Model(outerModel).Exec(ctx); err != nil {
 			return err
 		}
 
 		// Nested transaction that fails
 		err := tx.Transaction(ctx, func(tx2 *Tx) error {
 			innerModel := &TestModel{Name: "Inner Nested", Email: "innernested@example.com", Age: 55}
-			if err := Create(ctx, tx2, innerModel); err != nil {
+			if _, err := tx2.NewInsert().Model(innerModel).Exec(ctx); err != nil {
 				return err
 			}
 			return errors.New("nested transaction error")
@@ -249,7 +251,7 @@ func TestTransaction_Nested_Rollback(t *testing.T) {
 
 		// Create another record in outer transaction
 		anotherModel := &TestModel{Name: "Another Outer", Email: "another@example.com", Age: 60}
-		if err := Create(ctx, tx, anotherModel); err != nil {
+		if _, err := tx.NewInsert().Model(anotherModel).Exec(ctx); err != nil {
 			return err
 		}
 
@@ -260,9 +262,8 @@ func TestTransaction_Nested_Rollback(t *testing.T) {
 	}
 
 	// Verify outer records were committed
-	outerFound, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "outernested@example.com")
-	})
+	var outerFound TestModel
+	err = db.NewSelect().Model(&outerFound).Where("email = ?", "outernested@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed for outer: %v", err)
 	}
@@ -271,9 +272,8 @@ func TestTransaction_Nested_Rollback(t *testing.T) {
 		t.Errorf("Expected name Outer Nested, got %s", outerFound.Name)
 	}
 
-	anotherFound, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "another@example.com")
-	})
+	var anotherFound TestModel
+	err = db.NewSelect().Model(&anotherFound).Where("email = ?", "another@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed for another: %v", err)
 	}
@@ -283,9 +283,8 @@ func TestTransaction_Nested_Rollback(t *testing.T) {
 	}
 
 	// Verify inner record was not committed
-	_, err = FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "innernested@example.com")
-	})
+	var innerNotFound TestModel
+	err = db.NewSelect().Model(&innerNotFound).Where("email = ?", "innernested@example.com").Limit(1).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error for inner record, got %v", err)
 	}
@@ -304,7 +303,7 @@ func TestTransaction_ReadOnly(t *testing.T) {
 	}
 
 	testModel := &TestModel{Name: "Read Only Test", Email: "readonly@example.com", Age: 65}
-	err = Create(ctx, db, testModel)
+	_, err = db.NewInsert().Model(testModel).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -312,7 +311,8 @@ func TestTransaction_ReadOnly(t *testing.T) {
 	// Test read-only transaction
 	err = db.ReadOnlyTransaction(ctx, func(tx *Tx) error {
 		// Should be able to read
-		found, err := FindByID[TestModel](ctx, tx, testModel.ID)
+		var found TestModel
+		err := tx.NewSelect().Model(&found).Where("id = ?", testModel.ID).Scan(ctx)
 		if err != nil {
 			return err
 		}
@@ -323,7 +323,8 @@ func TestTransaction_ReadOnly(t *testing.T) {
 
 		// Should not be able to write (this will cause an error)
 		newModel := &TestModel{Name: "Should Not Work", Email: "shouldnotwork@example.com", Age: 70}
-		return Create(ctx, tx, newModel)
+		_, err = tx.NewInsert().Model(newModel).Exec(ctx)
+		return err
 	})
 	if err == nil {
 		t.Error("Expected error when writing in read-only transaction")
@@ -352,19 +353,19 @@ func TestTransaction_MultipleOperations(t *testing.T) {
 	err = db.Transaction(ctx, func(tx *Tx) error {
 		// Create multiple records
 		for _, model := range models {
-			if err := Create(ctx, tx, model); err != nil {
+			if _, err := tx.NewInsert().Model(model).Exec(ctx); err != nil {
 				return err
 			}
 		}
 
 		// Update one record
 		models[0].Age = 26
-		if err := Update(ctx, tx, models[0]); err != nil {
+		if _, err := tx.NewUpdate().Model(models[0]).WherePK().Exec(ctx); err != nil {
 			return err
 		}
 
 		// Delete one record
-		if err := Delete(ctx, tx, models[2]); err != nil {
+		if _, err := tx.NewDelete().Model(models[2]).WherePK().Exec(ctx); err != nil {
 			return err
 		}
 
@@ -376,7 +377,8 @@ func TestTransaction_MultipleOperations(t *testing.T) {
 
 	// Verify results
 	// Check updated record
-	updated, err := FindByID[TestModel](ctx, db, models[0].ID)
+	var updated TestModel
+	err = db.NewSelect().Model(&updated).Where("id = ?", models[0].ID).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindByID failed for updated record: %v", err)
 	}
@@ -386,7 +388,8 @@ func TestTransaction_MultipleOperations(t *testing.T) {
 	}
 
 	// Check remaining record
-	remaining, err := FindByID[TestModel](ctx, db, models[1].ID)
+	var remaining TestModel
+	err = db.NewSelect().Model(&remaining).Where("id = ?", models[1].ID).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindByID failed for remaining record: %v", err)
 	}
@@ -396,13 +399,14 @@ func TestTransaction_MultipleOperations(t *testing.T) {
 	}
 
 	// Check deleted record
-	_, err = FindByID[TestModel](ctx, db, models[2].ID)
+	var deleted TestModel
+	err = db.NewSelect().Model(&deleted).Where("id = ?", models[2].ID).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected NotFound error for deleted record, got %v", err)
 	}
 
 	// Verify total count
-	count, err := Count[TestModel](ctx, db, nil)
+	count, err := db.NewSelect().Model((*TestModel)(nil)).Count(ctx)
 	if err != nil {
 		t.Fatalf("Count failed: %v", err)
 	}
@@ -433,7 +437,7 @@ func TestTransaction_RollbackTo(t *testing.T) {
 
 	// Create first record
 	model1 := &TestModel{Name: "Savepoint 1", Email: "savepoint1@example.com", Age: 40}
-	err = Create(ctx, tx, model1)
+	_, err = tx.NewInsert().Model(model1).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -446,7 +450,7 @@ func TestTransaction_RollbackTo(t *testing.T) {
 
 	// Create second record
 	model2 := &TestModel{Name: "Savepoint 2", Email: "savepoint2@example.com", Age: 45}
-	err = Create(ctx, tx, model2)
+	_, err = tx.NewInsert().Model(model2).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -459,7 +463,7 @@ func TestTransaction_RollbackTo(t *testing.T) {
 
 	// Create third record
 	model3 := &TestModel{Name: "Savepoint 3", Email: "savepoint3@example.com", Age: 50}
-	err = Create(ctx, tx, model3)
+	_, err = tx.NewInsert().Model(model3).Exec(ctx)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -472,19 +476,22 @@ func TestTransaction_RollbackTo(t *testing.T) {
 
 	// Verify results
 	// First record should exist
-	_, err = FindByID[TestModel](ctx, db, model1.ID)
+	var first TestModel
+	err = db.NewSelect().Model(&first).Where("id = ?", model1.ID).Scan(ctx)
 	if err != nil {
 		t.Errorf("Expected first record to exist, got %v", err)
 	}
 
 	// Second record should not exist (rolled back)
-	_, err = FindByID[TestModel](ctx, db, model2.ID)
+	var second TestModel
+	err = db.NewSelect().Model(&second).Where("id = ?", model2.ID).Scan(ctx)
 	if !IsNotFound(err) {
 		t.Errorf("Expected second record to not exist, got %v", err)
 	}
 
 	// Third record should exist
-	_, err = FindByID[TestModel](ctx, db, model3.ID)
+	var third TestModel
+	err = db.NewSelect().Model(&third).Where("id = ?", model3.ID).Scan(ctx)
 	if err != nil {
 		t.Errorf("Expected third record to exist, got %v", err)
 	}
@@ -511,16 +518,16 @@ func TestTransaction_DBKitAccess(t *testing.T) {
 
 		// Use parent DB to create a record (this should work)
 		model := &TestModel{Name: "Parent DB Test", Email: "parentdb@example.com", Age: 55}
-		return Create(ctx, parentDB, model)
+		_, err := parentDB.NewInsert().Model(model).Exec(ctx)
+		return err
 	})
 	if err != nil {
 		t.Fatalf("Transaction with parent DB access failed: %v", err)
 	}
 
 	// Verify record was created
-	found, err := FindOne[TestModel](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("email = ?", "parentdb@example.com")
-	})
+	var found TestModel
+	err = db.NewSelect().Model(&found).Where("email = ?", "parentdb@example.com").Limit(1).Scan(ctx)
 	if err != nil {
 		t.Fatalf("FindOne failed: %v", err)
 	}
