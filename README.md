@@ -306,6 +306,52 @@ if err != nil {
 }
 ```
 
+## Base Models
+
+DBKit provides composable base models for common patterns:
+
+```go
+// Basic model with ID and timestamps
+type User struct {
+    bun.BaseModel `bun:"table:users,alias:u"`
+    dbkit.BaseModel
+    Email string `bun:"email,notnull,unique"`
+}
+
+// With soft delete capability
+type Post struct {
+    bun.BaseModel `bun:"table:posts,alias:p"`
+    dbkit.BaseModel
+    dbkit.SoftDeletableModel
+    Title string `bun:"title,notnull"`
+}
+
+// With optimistic locking (versioning)
+type Account struct {
+    bun.BaseModel `bun:"table:accounts,alias:a"`
+    dbkit.BaseModel
+    dbkit.VersionedModel
+    Balance int64 `bun:"balance,notnull"`
+}
+
+// Full model with all features
+type Document struct {
+    bun.BaseModel `bun:"table:documents,alias:d"`
+    dbkit.FullModel  // ID, timestamps, soft delete, version
+    Content string `bun:"content"`
+}
+```
+
+### Available Base Models
+
+| Model                | Fields                   | Use Case                    |
+| -------------------- | ------------------------ | --------------------------- |
+| `BaseModel`          | ID, CreatedAt, UpdatedAt | Standard models             |
+| `SoftDeletableModel` | DeletedAt                | Add soft delete capability  |
+| `VersionedModel`     | Version                  | Add optimistic locking      |
+| `TimestampedModel`   | CreatedAt, UpdatedAt     | Timestamps without UUID ID  |
+| `FullModel`          | All fields combined      | Models needing all features |
+
 ## Observability
 
 ### Logging
