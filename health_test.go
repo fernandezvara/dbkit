@@ -68,7 +68,7 @@ func TestHealth_ConnectionPoolStats(t *testing.T) {
 			Email: fmt.Sprintf("health%d@example.com", i),
 			Age:   25 + i,
 		}
-		err = Create(ctx, db, model)
+		_, err = db.NewInsert().Model(model).Exec(ctx)
 		if err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
@@ -269,7 +269,7 @@ func TestHealth_WithLoad(t *testing.T) {
 					Email: fmt.Sprintf("load_%d_%d@example.com", id, j),
 					Age:   id,
 				}
-				err := Create(ctx, db, model)
+				_, err := db.NewInsert().Model(model).Exec(ctx)
 				if err != nil {
 					t.Errorf("Create failed in goroutine %d: %v", id, err)
 					return

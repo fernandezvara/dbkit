@@ -270,3 +270,71 @@ func GetHint(err error) (string, bool) {
 	}
 	return "", false
 }
+
+// QueryResult wraps a query result with error context for chainable error handling.
+// It provides a way to add meaningful context to errors without depending on Bun internals.
+type QueryResult[T any] struct {
+	result T
+	err    error
+	op     string
+}
+
+// Err returns the wrapped error with enhanced context.
+// If there was no error, it returns nil.
+func (qr *QueryResult[T]) Err() error {
+	return wrapError(qr.err, qr.op)
+}
+
+// Unwrap returns the result and the wrapped error.
+// Use this when you need both the result and the error.
+func (qr *QueryResult[T]) Unwrap() (T, error) {
+	return qr.result, wrapError(qr.err, qr.op)
+}
+
+// Result returns only the result value.
+// Use Err() to check for errors first.
+func (qr *QueryResult[T]) Result() T {
+	return qr.result
+}
+
+// HasError returns true if there was an error.
+func (qr *QueryResult[T]) HasError() bool {
+	return qr.err != nil
+}
+
+// WithErr wraps a result and error with operation context for enhanced error handling.
+// This function allows chainable error handling with meaningful context.
+//
+// Usage:
+//
+//	// For operations that return (sql.Result, error)
+//	result, err := dbkit.WithErr(db.NewInsert().Model(&user).Exec(ctx), "CreateUser").Unwrap()
+//
+//	// For operations that return only error (like Scan)
+//	err := dbkit.WithErr1(db.NewSelect().Model(&user).Where("id = ?", id).Scan(ctx), "FindByID").Err()
+//
+//	// Check error directly
+//	if dbkit.WithErr(db.NewInsert().Model(&user).Exec(ctx), "CreateUser").HasError() {
+//	    // handle error
+//	}
+func WithErr[T any](result T, err error, op string) *QueryResult[T] {
+	return &QueryResult[T]{
+		result: result,
+		err:    err,
+		op:     op,
+	}
+}
+
+// WithErr1 is a convenience function for operations that return only an error.
+// This is useful for Scan() operations which don't return a result.
+//
+// Usage:
+//
+//	err := dbkit.WithErr1(db.NewSelect().Model(&user).Where("id = ?", id).Scan(ctx), "FindByID").Err()
+func WithErr1(err error, op string) *QueryResult[struct{}] {
+	return &QueryResult[struct{}]{
+		result: struct{}{},
+		err:    err,
+		op:     op,
+	}
+}

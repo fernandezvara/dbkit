@@ -113,27 +113,29 @@ func main() {
         panic(err)
     }
 
-    // Create
+    // Create using direct Bun call
     user := &User{Email: "john@example.com", Name: "John"}
-    if err := dbkit.Create(ctx, db, user); err != nil {
+    if _, err := db.NewInsert().Model(user).Exec(ctx); err != nil {
         panic(err)
     }
 
-    // Find
-    found, err := dbkit.FindByID[User](ctx, db, user.ID)
+    // Find using direct Bun call
+    var found User
+    err = db.NewSelect().Model(&found).Where("id = ?", user.ID).Scan(ctx)
     if err != nil {
         if dbkit.IsNotFound(err) {
             println("user not found")
         }
     }
 
-    // Update
+    // Update using direct Bun call
     found.Name = "John Doe"
-    dbkit.Update(ctx, db, found)
+    db.NewUpdate().Model(&found).WherePK().Exec(ctx)
 
     // Transaction
     err = db.Transaction(ctx, func(tx *dbkit.Tx) error {
-        return dbkit.Delete(ctx, tx, found)
+        _, err := tx.NewDelete().Model(&found).WherePK().Exec(ctx)
+        return err
     })
 }
 ```
@@ -213,10 +215,10 @@ Failure to ensure unique migration IDs can result in:
 
 ```go
 err := db.Transaction(ctx, func(tx *dbkit.Tx) error {
-    if err := dbkit.Create(ctx, tx, &user); err != nil {
+    if _, err := tx.NewInsert().Model(&user).Exec(ctx); err != nil {
         return err // auto rollback
     }
-    if err := dbkit.Create(ctx, tx, &profile); err != nil {
+    if _, err := tx.NewInsert().Model(&profile).Exec(ctx); err != nil {
         return err // auto rollback
     }
     return nil // auto commit
@@ -241,11 +243,11 @@ return tx.Commit()
 
 ```go
 err := db.Transaction(ctx, func(tx *dbkit.Tx) error {
-    dbkit.Create(ctx, tx, &outer)
+    tx.NewInsert().Model(&outer).Exec(ctx)
 
     // Nested - uses SAVEPOINT
     err := tx.Transaction(ctx, func(tx2 *dbkit.Tx) error {
-        dbkit.Create(ctx, tx2, &inner)
+        tx2.NewInsert().Model(&inner).Exec(ctx)
         return errors.New("fail") // only rolls back inner
     })
 
@@ -254,48 +256,36 @@ err := db.Transaction(ctx, func(tx *dbkit.Tx) error {
 })
 ```
 
-## Generic Helpers
+## Chainable Error Wrapping
+
+DBKit provides chainable error wrapping to add meaningful context to database errors:
 
 ```go
-// Find
-user, err := dbkit.FindByID[User](ctx, db, "uuid")
-user, err := dbkit.FindOne[User](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-    return q.Where("email = ?", email)
-})
-users, err := dbkit.FindAll[User](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
-    return q.Where("active = ?", true).Limit(10)
-})
+// For operations that return (sql.Result, error)
+result, err := dbkit.WithErr(db.NewInsert().Model(&user).Exec(ctx), "CreateUser").Unwrap()
+if err != nil {
+    // err is wrapped with operation context
+}
 
-// Create
-err := dbkit.Create(ctx, db, &user)
-err := dbkit.CreateMany(ctx, db, users)
+// For operations that return only error (like Scan)
+err := dbkit.WithErr1(db.NewSelect().Model(&user).Where("id = ?", id).Scan(ctx), "FindByID").Err()
 
-// Update
-err := dbkit.Update(ctx, db, &user)
-err := dbkit.UpdateColumns(ctx, db, &user, "name", "updated_at")
-rows, err := dbkit.UpdateWhere[User](ctx, db, &user, func(q *bun.UpdateQuery) *bun.UpdateQuery {
-    return q.Where("active = ?", false)
-})
+// Check error directly
+if dbkit.WithErr(db.NewInsert().Model(&user).Exec(ctx), "CreateUser").HasError() {
+    // handle error
+}
 
-// Delete
-err := dbkit.Delete(ctx, db, &user)
-err := dbkit.DeleteByID[User](ctx, db, "uuid")
-rows, err := dbkit.DeleteWhere[User](ctx, db, func(q *bun.DeleteQuery) *bun.DeleteQuery {
-    return q.Where("created_at < ?", cutoff)
-})
-
-// Exists / Count
-exists, err := dbkit.ExistsByID[User](ctx, db, "uuid")
-count, err := dbkit.Count[User](ctx, db, nil)
-
-// Upsert
-err := dbkit.Upsert(ctx, db, &user, []string{"email"}, []string{"name", "updated_at"})
+// Get result without error check
+qr := dbkit.WithErr(db.NewInsert().Model(&user).Exec(ctx), "CreateUser")
+if !qr.HasError() {
+    result := qr.Result()
+}
 ```
 
 ## Error Handling
 
 ```go
-err := dbkit.Create(ctx, db, &user)
+_, err := db.NewInsert().Model(&user).Exec(ctx)
 if err != nil {
     // Quick checks with sentinel errors
     if dbkit.IsNotFound(err) { ... }
