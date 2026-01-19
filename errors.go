@@ -1,6 +1,7 @@
 package dbkit
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -179,8 +180,9 @@ func wrapPgError(pgErr *pgconn.PgError, op string) *Error {
 }
 
 // IsNotFound checks if error is a not found error
+// This also checks for sql.ErrNoRows for direct Bun calls
 func IsNotFound(err error) bool {
-	return errors.Is(err, ErrNotFound)
+	return errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows)
 }
 
 // IsDuplicate checks if error is a duplicate key error
