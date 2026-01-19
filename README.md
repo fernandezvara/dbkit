@@ -466,6 +466,54 @@ db.NewSelect().Model(&users).
     Scan(ctx)
 ```
 
+## Batch Operations
+
+```go
+// Batch insert (handles large datasets)
+count, err := dbkit.BatchInsert(ctx, db, users, 100)
+
+// Batch update
+count, err := dbkit.BatchUpdate(ctx, db, users, 100)
+
+// Batch delete by IDs
+count, err := dbkit.BatchDelete[User](ctx, db, ids, 100)
+
+// Batch upsert
+count, err := dbkit.BatchUpsert(ctx, db, users, []string{"email"}, []string{"name"}, 100)
+
+// Bulk insert with returning
+inserted, err := dbkit.BulkInsertReturning(ctx, db, users)
+```
+
+## Query Helpers
+
+```go
+// Check existence
+exists, err := dbkit.Exists[User](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
+    return q.Where("email = ?", email)
+})
+
+// Count records
+count, err := dbkit.Count[User](ctx, db, func(q *bun.SelectQuery) *bun.SelectQuery {
+    return q.Where("active = ?", true)
+})
+
+// Pluck single column
+emails, err := dbkit.Pluck[User, string](ctx, db, "email", nil)
+
+// Find or create
+user, created, err := dbkit.FindOrCreate(ctx, db, &User{Email: "test@example.com"},
+    func(q *bun.SelectQuery) *bun.SelectQuery {
+        return q.Where("email = ?", "test@example.com")
+    })
+
+// Update with returning
+updated, err := dbkit.UpdateReturning(ctx, db, &user)
+
+// Delete with returning
+deleted, err := dbkit.DeleteReturning(ctx, db, &user)
+```
+
 ## Observability
 
 ### Logging
