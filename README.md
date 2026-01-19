@@ -423,6 +423,49 @@ hook := dbkit.NewAuditHook(dbkit.AuditConfig{
 })
 ```
 
+## Pagination
+
+### Offset-based Pagination
+
+```go
+// Simple pagination modifier
+var users []User
+db.NewSelect().Model(&users).Apply(dbkit.Paginate(2, 10)).Scan(ctx)
+
+// With count and metadata
+page, err := dbkit.PaginateWithCount[User](ctx, db, 1, 10, func(q *bun.SelectQuery) *bun.SelectQuery {
+    return q.Where("active = ?", true).Order("created_at DESC")
+})
+// page.Items, page.TotalItems, page.TotalPages, page.PageInfo
+```
+
+### Cursor-based Pagination
+
+```go
+// Forward pagination
+var users []User
+db.NewSelect().Model(&users).
+    Apply(dbkit.CursorPaginate("id", "", afterCursor, 10, true)).
+    Scan(ctx)
+
+// Process results
+items, pageInfo := dbkit.CursorPaginateResult(users, 10, true, func(u User) string {
+    return dbkit.EncodeCursor(u.ID, "")
+})
+// pageInfo.HasNextPage, pageInfo.EndCursor
+```
+
+### Keyset Pagination
+
+```go
+// Efficient for large datasets
+var users []User
+db.NewSelect().Model(&users).
+    Apply(dbkit.KeysetPaginate("id", lastID, 10)).
+    Order("id ASC").
+    Scan(ctx)
+```
+
 ## Observability
 
 ### Logging
