@@ -514,6 +514,36 @@ updated, err := dbkit.UpdateReturning(ctx, db, &user)
 deleted, err := dbkit.DeleteReturning(ctx, db, &user)
 ```
 
+## Multi-tenancy
+
+```go
+// Add tenant to context
+ctx = dbkit.WithTenant(ctx, "tenant-123")
+
+// Get tenant from context
+tenantID := dbkit.GetTenant(ctx)
+tenantID, err := dbkit.RequireTenant(ctx)  // Returns error if not set
+
+// Tenant-scoped queries
+db.NewSelect().Model(&users).Apply(dbkit.TenantScope(ctx)).Scan(ctx)
+db.NewUpdate().Model(&user).Apply(dbkit.TenantUpdateScope(ctx)).WherePK().Exec(ctx)
+db.NewDelete().Model(&user).Apply(dbkit.TenantDeleteScope(ctx)).WherePK().Exec(ctx)
+
+// Tenant model embedding
+type User struct {
+    bun.BaseModel `bun:"table:users,alias:u"`
+    dbkit.BaseModel
+    dbkit.TenantModel  // Adds tenant_id field
+    Email string `bun:"email,notnull"`
+}
+
+// Tenant isolation helper
+ti := dbkit.NewTenantIsolation(db, dbkit.DefaultTenantConfig())
+ti.Select(ctx).Model(&users).Scan(ctx)
+ti.Update(ctx).Model(&user).WherePK().Exec(ctx)
+ti.Delete(ctx).Model(&user).WherePK().Exec(ctx)
+```
+
 ## Observability
 
 ### Logging
