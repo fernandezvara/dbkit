@@ -4,7 +4,7 @@
 # Include PostgreSQL versions
 include scripts/versions.mk
 
-.PHONY: help detect-runtime start stop test test-all test-pg18 test-pg17 test-pg16 test-pg15 test-pg14 test-pg13 clean wait-healthy
+.PHONY: help detect-runtime start stop test test-all test-pg18 test-pg17 test-pg16 test-pg15 test-pg14 test-pg13 clean wait-healthy lint
 
 # Detect container runtime (docker or podman)
 DOCKER := $(shell command -v docker 2> /dev/null)
@@ -71,6 +71,7 @@ help: ## Show this help message
 	@echo "  status               Show status of containers"
 	@echo "  test-coverage        Run tests with coverage"
 	@echo "  bench                Run benchmark tests"
+	@echo "  lint                 Run golangci-lint"
 
 detect-runtime: ## Show detected container runtime and compose tool
 	@echo "Container runtime: $(CONTAINER_RUNTIME)"
@@ -185,3 +186,16 @@ bench: start ## Run benchmark tests
 	@echo "$(GREEN)Running benchmarks against PostgreSQL $(PG_17_VERSION)...$(NC)"
 	TEST_DATABASE_URL="postgres://postgres:password@localhost:5417/dbkit_test?sslmode=disable" \
 		go test -v -bench=. -benchmem -timeout $(TEST_TIMEOUT) ./...
+
+# Lint code with golangci-lint
+lint: ## Run golangci-lint
+	@echo "$(GREEN)Checking for golangci-lint installation...$(NC)"
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "$(RED)Error: golangci-lint is not installed.$(NC)"; \
+		echo "$(YELLOW)Please install golangci-lint from: https://golangci-lint.run/docs/welcome/install/local/$(NC)"; \
+		echo "$(YELLOW)Or run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Running golangci-lint...$(NC)"
+	golangci-lint run
+	@echo "$(GREEN)Linting complete!$(NC)"
