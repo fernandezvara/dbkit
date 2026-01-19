@@ -13,8 +13,8 @@ jobs:
 
     strategy:
       matrix:
-        go: ["1.22", "1.23"]
-        postgres: ["13", "14", "15", "16", "17"]
+        go: ["1.25"]
+        postgres: ["13", "14", "15", "16", "17", "18"]
       fail-fast: false
 
     services:
