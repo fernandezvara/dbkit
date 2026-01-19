@@ -398,6 +398,31 @@ result, err := dbkit.NewVersionedUpdate(db, &account, account.Version).
     Exec(ctx)
 ```
 
+### Audit Trail
+
+```go
+// Create a database audit handler
+handler := dbkit.NewDatabaseAuditHandler(db)
+
+// Log operations manually
+dbkit.AuditCreate(ctx, handler, "users", user.ID, &user)
+dbkit.AuditUpdate(ctx, handler, "users", user.ID, &oldUser, &newUser)
+dbkit.AuditDelete(ctx, handler, "users", user.ID, &user)
+
+// Add audit context (user ID, IP, user agent)
+ctx = dbkit.WithAuditContext(ctx, userID, ipAddress, userAgent)
+
+// Configure audit hook
+hook := dbkit.NewAuditHook(dbkit.AuditConfig{
+    Handler:        handler,
+    Tables:         []string{"users", "orders"},  // Optional: specific tables
+    ExcludeTables:  []string{"sessions"},         // Optional: exclude tables
+    IncludeOldData: true,
+    IncludeNewData: true,
+    UserIDExtractor: dbkit.DefaultUserIDExtractor,
+})
+```
+
 ## Observability
 
 ### Logging
