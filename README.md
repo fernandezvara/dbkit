@@ -352,6 +352,27 @@ type Document struct {
 | `TimestampedModel`   | CreatedAt, UpdatedAt     | Timestamps without UUID ID  |
 | `FullModel`          | All fields combined      | Models needing all features |
 
+### Soft Delete Operations
+
+```go
+// Soft delete a record
+dbkit.SoftDelete(ctx, db, &user)
+dbkit.SoftDeleteByID[User](ctx, db, userID)
+
+// Restore a soft-deleted record
+dbkit.Restore(ctx, db, &user)
+dbkit.RestoreByID[User](ctx, db, userID)
+
+// Permanently delete (bypass soft delete)
+dbkit.HardDelete(ctx, db, &user)
+dbkit.HardDeleteByID[User](ctx, db, userID)
+
+// Query modifiers for soft delete
+db.NewSelect().Model(&users).Apply(dbkit.NotDeleted).Scan(ctx)   // Exclude deleted
+db.NewSelect().Model(&users).Apply(dbkit.OnlyDeleted).Scan(ctx)  // Only deleted
+db.NewSelect().Model(&users).Apply(dbkit.WithDeleted).Scan(ctx)  // Include all
+```
+
 ## Observability
 
 ### Logging
